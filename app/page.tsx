@@ -620,8 +620,7 @@ export default function BotHosterApp() {
                 Join our Telegram Group
               </a>
             </div>
-            <div className="text-right text-sm text-muted-foreground">
-              <p>API: bot-hoster-api.vercel.app</p>
+            <div className="text-right text-sm text-muted-foreground"
               <p>© 2026 BotHoster. All rights reserved.</p>
             </div>
           </div>
