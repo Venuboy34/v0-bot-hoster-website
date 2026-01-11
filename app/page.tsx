@@ -1,14 +1,14 @@
 "use client"
 
 import type React from "react"
-
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { AlertCircle, Trash2, Edit2, Plus, Copy, CheckCircle, Loader2 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { initializeFirebase, signUpWithEmail, signInWithEmail, logoutUser, getCurrentUser } from "@/lib/firebase"
 
 interface Bot {
   bot_id: string
@@ -20,10 +20,10 @@ interface Bot {
   script: string
 }
 
-type AuthState = "login" | "signup" | "dashboard"
+type AuthState = "login" | "signup" | "dashboard" | "loading"
 
 export default function BotHosterApp() {
-  const [authState, setAuthState] = useState<AuthState>("login")
+  const [authState, setAuthState] = useState<AuthState>("loading")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -38,22 +38,36 @@ export default function BotHosterApp() {
   const [newBotToken, setNewBotToken] = useState("")
   const [botScript, setBotScript] = useState('def handle_message(text, message):\n    return "Hello: " + text')
   const [copiedId, setCopiedId] = useState("")
-  const [user, setUser] = useState<{ email: string } | null>(null)
+  const [user, setUser] = useState<{ email: string; uid: string } | null>(null)
 
-  // Simulate Firebase Auth
+  useEffect(() => {
+    initializeFirebase()
+    const unsubscribe = getCurrentUser((firebaseUser) => {
+      if (firebaseUser) {
+        setUser({ email: firebaseUser.email || "", uid: firebaseUser.uid })
+        setAuthState("dashboard")
+        loadBots(firebaseUser.uid)
+      } else {
+        setAuthState("login")
+      }
+    })
+    return () => unsubscribe()
+  }, [])
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError("")
 
     try {
-      // Simulate login
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      setUser({ email })
+      const firebaseUser = await signInWithEmail(email, password)
+      setUser({ email: firebaseUser.email || "", uid: firebaseUser.uid })
       setAuthState("dashboard")
-      loadBots()
-    } catch (err) {
-      setError("Login failed. Please try again.")
+      loadBots(firebaseUser.uid)
+      setEmail("")
+      setPassword("")
+    } catch (err: any) {
+      setError(err.message || "Login failed. Please try again.")
     } finally {
       setIsLoading(false)
     }
@@ -65,21 +79,22 @@ export default function BotHosterApp() {
     setError("")
 
     try {
-      // Simulate signup
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      setUser({ email })
+      const firebaseUser = await signUpWithEmail(email, password)
+      setUser({ email: firebaseUser.email || "", uid: firebaseUser.uid })
       setAuthState("dashboard")
-      loadBots()
-    } catch (err) {
-      setError("Signup failed. Please try again.")
+      loadBots(firebaseUser.uid)
+      setEmail("")
+      setPassword("")
+    } catch (err: any) {
+      setError(err.message || "Signup failed. Please try again.")
     } finally {
       setIsLoading(false)
     }
   }
 
-  const loadBots = () => {
-    // Load bots from localStorage (demo)
-    const savedBots = localStorage.getItem("bots")
+  const loadBots = (uid: string) => {
+    // Load bots from localStorage (demo) - can be replaced with Firestore later
+    const savedBots = localStorage.getItem(`bots-${uid}`)
     if (savedBots) {
       const parsed = JSON.parse(savedBots)
       setBots(parsed)
@@ -129,7 +144,7 @@ export default function BotHosterApp() {
         const updatedBots = [...bots, newBot]
         setBots(updatedBots)
         setBotCount(updatedBots.length)
-        localStorage.setItem("bots", JSON.stringify(updatedBots))
+        localStorage.setItem(`bots-${user?.uid}`, JSON.stringify(updatedBots))
 
         setSuccess("Bot created successfully!")
         setNewBotToken("")
@@ -168,7 +183,7 @@ export default function BotHosterApp() {
       if (response?.ok) {
         const updatedBots = bots.map((b) => (b.bot_id === editingBot.bot_id ? { ...b, script: botScript } : b))
         setBots(updatedBots)
-        localStorage.setItem("bots", JSON.stringify(updatedBots))
+        localStorage.setItem(`bots-${user?.uid}`, JSON.stringify(updatedBots))
 
         setSuccess("Bot updated successfully!")
         setEditingBot(null)
@@ -199,7 +214,7 @@ export default function BotHosterApp() {
         const updatedBots = bots.filter((b) => b.bot_id !== botId)
         setBots(updatedBots)
         setBotCount(updatedBots.length)
-        localStorage.setItem("bots", JSON.stringify(updatedBots))
+        localStorage.setItem(`bots-${user?.uid}`, JSON.stringify(updatedBots))
 
         setSuccess("Bot deleted successfully!")
         setTimeout(() => setSuccess(""), 3000)
@@ -217,12 +232,21 @@ export default function BotHosterApp() {
     setTimeout(() => setCopiedId(""), 2000)
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await logoutUser()
     setUser(null)
     setAuthState("login")
     setBots([])
     setEmail("")
     setPassword("")
+  }
+
+  if (authState === "loading") {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
   }
 
   // Auth Pages
@@ -266,6 +290,7 @@ export default function BotHosterApp() {
                     onChange={(e) => setEmail(e.target.value)}
                     disabled={isLoading}
                     className="bg-input border-border"
+                    required
                   />
                 </div>
 
@@ -278,6 +303,8 @@ export default function BotHosterApp() {
                     onChange={(e) => setPassword(e.target.value)}
                     disabled={isLoading}
                     className="bg-input border-border"
+                    required
+                    minLength={6}
                   />
                 </div>
 
@@ -332,7 +359,7 @@ export default function BotHosterApp() {
               <div className="mt-6 pt-6 border-t border-border">
                 <p className="text-xs text-muted-foreground text-center mb-3">Join our official community</p>
                 <a
-                  href="https://t.me/zerodev24"
+                  href="https://t.me/zerodev2"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-full block text-center px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:opacity-90 transition text-sm font-medium"
@@ -621,6 +648,7 @@ export default function BotHosterApp() {
               </a>
             </div>
             <div className="text-right text-sm text-muted-foreground">
+              <p>API: bot-hoster-api.vercel.app</p>
               <p>© 2026 BotHoster. All rights reserved.</p>
             </div>
           </div>
