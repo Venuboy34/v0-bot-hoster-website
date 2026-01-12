@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+import { API_BASE_URL } from "@/lib/api-config"
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -103,8 +104,7 @@ export default function BotHosterApp() {
         return
       }
 
-      // Call API to create bot
-      const response = await fetch("https://bot-hoster-api.vercel.app/api/bot/create", {
+      const response = await fetch(`${API_BASE_URL}/api/bot/create`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -156,7 +156,7 @@ export default function BotHosterApp() {
     setError("")
 
     try {
-      const response = await fetch("https://bot-hoster-api.vercel.app/api/bot/update", {
+      const response = await fetch(`${API_BASE_URL}/api/bot/update`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -190,7 +190,7 @@ export default function BotHosterApp() {
     setError("")
 
     try {
-      const response = await fetch(`https://bot-hoster-api.vercel.app/api/bot/${botId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/bot/${botId}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
       }).catch(() => null)
